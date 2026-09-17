@@ -3,7 +3,8 @@ const seats = Array.from({ length: 20 }, (_, index) => ({
   status: "available",
   email: null,
   holdCode: null,
-  expiresAt: null
+  expiresAt: null,
+  extensions: 0
 }));
 
 module.exports = {

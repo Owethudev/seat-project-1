@@ -9,6 +9,7 @@ function resetSeat(seat) {
   seat.email = null;
   seat.holdCode = null;
   seat.expiresAt = null;
+  seat.extensions = 0;
 }
 
 function isSeatExpired(seat) {
@@ -76,13 +77,15 @@ app.post("/api/holds", (req, res) => {
   seat.holdCode = holdCode;
   seat.status = "held";
   seat.expiresAt = expiresAt;
+  seat.extensions = 0;
 
   return res.status(201).json({
     holdCode,
     seatNumber: seat.number,
     email: seat.email,
     status: seat.status,
-    expiresAt: seat.expiresAt
+    expiresAt: seat.expiresAt,
+    extensions: seat.extensions
   });
 });
 
@@ -134,13 +137,16 @@ app.post("/api/holds/confirm", (req, res) => {
 
   seat.status = "confirmed";
   seat.expiresAt = null;
+  seat.extensions = 0;
 
   return res.status(200).json({
     message: "Seat confirmed",
     seatNumber: seat.number,
     email: seat.email,
     holdCode: seat.holdCode,
-    status: seat.status
+    status: seat.status,
+    expiresAt: seat.expiresAt,
+    extensions: seat.extensions
   });
 });
 
@@ -180,6 +186,68 @@ app.post("/api/holds/release", (req, res) => {
     message: "Seat released",
     seatNumber: seat.number,
     status: seat.status
+  });
+});
+
+app.post("/api/holds/extend", (req, res) => {
+  const { email, holdCode } = req.body;
+
+  if (!email || !holdCode) {
+    return res.status(400).json({
+      error: "Email and hold code are required"
+    });
+  }
+
+  const seat = findSeatByHoldCode(holdCode);
+
+  if (!seat) {
+    return res.status(404).json({
+      error: "Hold not found"
+    });
+  }
+
+  if (seat.email !== email) {
+    return res.status(403).json({
+      error: "Wrong email for this hold"
+    });
+  }
+
+  if (isSeatExpired(seat)) {
+    resetSeat(seat);
+    return res.status(409).json({
+      error: "Hold has expired"
+    });
+  }
+
+  if (seat.status === "confirmed") {
+    return res.status(409).json({
+      error: "Confirmed seats cannot be extended"
+    });
+  }
+
+  if (seat.status !== "held") {
+    return res.status(409).json({
+      error: "Hold is not active"
+    });
+  }
+
+  if (seat.extensions >= 2) {
+    return res.status(409).json({
+      error: "Maximum extensions reached"
+    });
+  }
+
+  seat.extensions += 1;
+  seat.expiresAt = Date.now() + 60000;
+
+  return res.status(200).json({
+    message: "Hold extended",
+    seatNumber: seat.number,
+    email: seat.email,
+    holdCode: seat.holdCode,
+    status: seat.status,
+    expiresAt: seat.expiresAt,
+    extensions: seat.extensions
   });
 });
 
