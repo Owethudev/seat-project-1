@@ -4,6 +4,21 @@ const { seats } = require("./src/seats");
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+function resetSeat(seat) {
+  seat.status = "available";
+  seat.email = null;
+  seat.holdCode = null;
+  seat.expiresAt = null;
+}
+
+function isSeatExpired(seat) {
+  if (!seat || !seat.expiresAt) {
+    return false;
+  }
+
+  return Date.now() > seat.expiresAt;
+}
+
 app.use(express.json());
 
 app.get("/api/health", (req, res) => {
@@ -33,6 +48,10 @@ app.post("/api/holds", (req, res) => {
     });
   }
 
+  if (isSeatExpired(seat)) {
+    resetSeat(seat);
+  }
+
   if (seat.status !== "available") {
     return res.status(409).json({
       error: "Seat is not available"
@@ -47,15 +66,19 @@ app.post("/api/holds", (req, res) => {
     holdCode += allowedCharacters[randomIndex];
   }
 
+  const expiresAt = Date.now() + 60000;
+
   seat.email = email;
   seat.holdCode = holdCode;
   seat.status = "held";
+  seat.expiresAt = expiresAt;
 
   return res.status(201).json({
     holdCode,
     seatNumber: seat.number,
     email: seat.email,
-    status: seat.status
+    status: seat.status,
+    expiresAt: seat.expiresAt
   });
 });
 
