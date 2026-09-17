@@ -29,6 +29,37 @@ function hasActiveSeat(email) {
   return seats.some((seat) => seat.email === email && seat.status !== "available");
 }
 
+function promoteWaitlistUser() {
+  if (waitlist.length === 0) {
+    return;
+  }
+
+  const nextEmail = waitlist.shift();
+  const availableSeat = seats.find((seat) => seat.status === "available");
+
+  if (!availableSeat) {
+    return;
+  }
+
+  const allowedCharacters = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  let holdCode = "";
+
+  for (let i = 0; i < 6; i += 1) {
+    const randomIndex = Math.floor(Math.random() * allowedCharacters.length);
+    holdCode += allowedCharacters[randomIndex];
+  }
+
+  availableSeat.email = nextEmail;
+  availableSeat.holdCode = holdCode;
+  availableSeat.status = "held";
+  availableSeat.expiresAt = Date.now() + 60000;
+  availableSeat.extensions = 0;
+
+  console.log(
+    `WAITLIST: ${nextEmail} has been given seat ${availableSeat.number} with hold code ${holdCode}`
+  );
+}
+
 app.use(express.json());
 
 app.get("/api/health", (req, res) => {
@@ -60,6 +91,7 @@ app.post("/api/holds", (req, res) => {
 
   if (isSeatExpired(seat)) {
     resetSeat(seat);
+    promoteWaitlistUser();
   }
 
   if (seat.status !== "available") {
@@ -113,6 +145,7 @@ app.post("/api/holds/confirm", (req, res) => {
 
   if (isSeatExpired(seat)) {
     resetSeat(seat);
+    promoteWaitlistUser();
     return res.status(409).json({
       error: "Hold has expired"
     });
@@ -174,6 +207,7 @@ app.post("/api/holds/release", (req, res) => {
 
   if (isSeatExpired(seat)) {
     resetSeat(seat);
+    promoteWaitlistUser();
     return res.status(409).json({
       error: "Hold has expired"
     });
@@ -186,6 +220,7 @@ app.post("/api/holds/release", (req, res) => {
   }
 
   resetSeat(seat);
+  promoteWaitlistUser();
 
   return res.status(200).json({
     message: "Seat released",
@@ -219,6 +254,7 @@ app.post("/api/holds/extend", (req, res) => {
 
   if (isSeatExpired(seat)) {
     resetSeat(seat);
+    promoteWaitlistUser();
     return res.status(409).json({
       error: "Hold has expired"
     });
