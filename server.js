@@ -3,6 +3,7 @@ const { seats } = require("./src/seats");
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+const waitlist = [];
 
 function resetSeat(seat) {
   seat.status = "available";
@@ -22,6 +23,10 @@ function isSeatExpired(seat) {
 
 function findSeatByHoldCode(holdCode) {
   return seats.find((seat) => seat.holdCode === holdCode);
+}
+
+function hasActiveSeat(email) {
+  return seats.some((seat) => seat.email === email && seat.status !== "available");
 }
 
 app.use(express.json());
@@ -248,6 +253,44 @@ app.post("/api/holds/extend", (req, res) => {
     status: seat.status,
     expiresAt: seat.expiresAt,
     extensions: seat.extensions
+  });
+});
+
+app.post("/api/waitlist", (req, res) => {
+  const { email } = req.body;
+
+  if (!email) {
+    return res.status(400).json({
+      error: "Email is required"
+    });
+  }
+
+  const allSeatsUnavailable = seats.every((seat) => seat.status !== "available");
+
+  if (!allSeatsUnavailable) {
+    return res.status(409).json({
+      error: "Seats are available, waitlist is not needed"
+    });
+  }
+
+  if (waitlist.includes(email)) {
+    return res.status(409).json({
+      error: "Email is already on the waitlist"
+    });
+  }
+
+  if (seats.some((seat) => seat.email === email && seat.status !== "available")) {
+    return res.status(409).json({
+      error: "User already has an active hold or confirmed seat"
+    });
+  }
+
+  waitlist.push(email);
+
+  return res.status(201).json({
+    message: "Added to waitlist",
+    email,
+    waitlist
   });
 });
 
