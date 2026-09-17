@@ -19,6 +19,10 @@ function isSeatExpired(seat) {
   return Date.now() > seat.expiresAt;
 }
 
+function findSeatByHoldCode(holdCode) {
+  return seats.find((seat) => seat.holdCode === holdCode);
+}
+
 app.use(express.json());
 
 app.get("/api/health", (req, res) => {
@@ -79,6 +83,103 @@ app.post("/api/holds", (req, res) => {
     email: seat.email,
     status: seat.status,
     expiresAt: seat.expiresAt
+  });
+});
+
+app.post("/api/holds/confirm", (req, res) => {
+  const { email, holdCode } = req.body;
+
+  if (!email || !holdCode) {
+    return res.status(400).json({
+      error: "Email and hold code are required"
+    });
+  }
+
+  const seat = findSeatByHoldCode(holdCode);
+
+  if (!seat) {
+    return res.status(404).json({
+      error: "Hold not found"
+    });
+  }
+
+  if (isSeatExpired(seat)) {
+    resetSeat(seat);
+    return res.status(409).json({
+      error: "Hold has expired"
+    });
+  }
+
+  if (seat.email !== email) {
+    return res.status(403).json({
+      error: "Wrong email for this hold"
+    });
+  }
+
+  if (seat.status === "confirmed") {
+    return res.status(200).json({
+      message: "Seat already confirmed",
+      seatNumber: seat.number,
+      email: seat.email,
+      holdCode: seat.holdCode,
+      status: seat.status
+    });
+  }
+
+  if (seat.status !== "held") {
+    return res.status(409).json({
+      error: "Hold is not active"
+    });
+  }
+
+  seat.status = "confirmed";
+  seat.expiresAt = null;
+
+  return res.status(200).json({
+    message: "Seat confirmed",
+    seatNumber: seat.number,
+    email: seat.email,
+    holdCode: seat.holdCode,
+    status: seat.status
+  });
+});
+
+app.post("/api/holds/release", (req, res) => {
+  const { email, holdCode } = req.body;
+
+  if (!email || !holdCode) {
+    return res.status(400).json({
+      error: "Email and hold code are required"
+    });
+  }
+
+  const seat = findSeatByHoldCode(holdCode);
+
+  if (!seat) {
+    return res.status(404).json({
+      error: "Hold not found"
+    });
+  }
+
+  if (isSeatExpired(seat)) {
+    resetSeat(seat);
+    return res.status(409).json({
+      error: "Hold has expired"
+    });
+  }
+
+  if (seat.email !== email) {
+    return res.status(403).json({
+      error: "Wrong email for this hold"
+    });
+  }
+
+  resetSeat(seat);
+
+  return res.status(200).json({
+    message: "Seat released",
+    seatNumber: seat.number,
+    status: seat.status
   });
 });
 
